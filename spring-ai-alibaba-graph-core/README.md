@@ -50,7 +50,7 @@ To quickly get started with Spring AI Alibaba Graph, you can build a complete wo
            <dependency>
                <groupId>com.alibaba.cloud.ai</groupId>
                <artifactId>spring-ai-alibaba-bom</artifactId>
-               <version>1.1.0.0-SNAPSHOT</version>
+               <version>1.1.0.0-msea-SNAPSHOT</version>
                <type>pom</type>
                <scope>import</scope>
            </dependency>
