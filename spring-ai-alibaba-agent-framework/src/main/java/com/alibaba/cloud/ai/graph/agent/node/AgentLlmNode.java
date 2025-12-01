@@ -27,6 +27,7 @@ import com.alibaba.cloud.ai.graph.agent.interceptor.ModelCallHandler;
 import com.alibaba.cloud.ai.graph.agent.interceptor.InterceptorChain;
 
 import com.aliyun.domain.monitor.executor.TransmittableEagleEyeConsumer;
+import com.aliyun.msea.ai.framework.llm.gateway.request.LlmInvokeMeta;
 import com.taobao.eagleeye.EagleEye;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
@@ -206,13 +207,12 @@ public class AgentLlmNode implements NodeActionWithConfig {
 										}
 									}
 								})
-//								.doFinally(new TransmittableEagleEyeConsumer<>() {
-//									@Override
-//									protected void innerAccept(SignalType signalType) {
-//										LlmInvokeMeta.THREAD_LOCAL.remove();
-//									}
-//								})
-						;
+								.doFinally(new TransmittableEagleEyeConsumer<>() {
+									@Override
+									protected void innerAccept(SignalType signalType) {
+										LlmInvokeMeta.THREAD_LOCAL.remove();
+									}
+								});
 					}
 					// modified by liufy end
 
