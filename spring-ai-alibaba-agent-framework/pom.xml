@@ -54,6 +54,12 @@
             <artifactId>msea-ai-framework</artifactId>
             <version>1.2.1-SNAPSHOT</version>
             <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.taobao.keycenter</groupId>
+                    <artifactId>keycenter-client</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
