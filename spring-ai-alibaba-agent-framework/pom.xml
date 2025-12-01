@@ -51,15 +51,15 @@
         </dependency>
         <dependency>
             <groupId>com.aliyun.msea</groupId>
-            <artifactId>msea-ai-framework</artifactId>
-            <version>1.2.1-SNAPSHOT</version>
+            <artifactId>msea-share-biz-monitor</artifactId>
+            <version>5.11.5-jakarta</version>
             <scope>provided</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.taobao.keycenter</groupId>
-                    <artifactId>keycenter-client</artifactId>
-                </exclusion>
-            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.taobao.eagleeye</groupId>
+            <artifactId>eagleeye-core</artifactId>
+            <version>1.10.7</version>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
