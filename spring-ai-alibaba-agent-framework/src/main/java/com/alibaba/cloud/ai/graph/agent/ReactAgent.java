@@ -25,7 +25,9 @@ import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.StateGraph;
 import com.alibaba.cloud.ai.graph.SubGraphNode;
+import com.alibaba.cloud.ai.graph.action.AsyncNodeActionWithConfig;
 import com.alibaba.cloud.ai.graph.action.EdgeAction;
+import com.alibaba.cloud.ai.graph.action.InterruptableAction;
 import com.alibaba.cloud.ai.graph.action.NodeActionWithConfig;
 import com.alibaba.cloud.ai.graph.agent.exception.AgentException;
 import com.alibaba.cloud.ai.graph.agent.factory.AgentBuilderFactory;
@@ -271,8 +273,9 @@ public class ReactAgent extends BaseAgent {
 		// Add hook nodes for afterModel hooks
 		for (Hook hook : afterModelHooks) {
 			if (hook instanceof ModelHook modelHook) {
-				if (hook instanceof HumanInTheLoopHook humanInTheLoopHook) {
-					graph.addNode(hook.getName() + ".afterModel", humanInTheLoopHook);
+				// modified by liufy
+				if (hook instanceof InterruptableAction) {
+					graph.addNode(hook.getName() + ".afterModel", (AsyncNodeActionWithConfig) hook);
 				} else {
 					graph.addNode(hook.getName() + ".afterModel", modelHook::afterModel);
 				}

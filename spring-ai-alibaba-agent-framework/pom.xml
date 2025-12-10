@@ -22,7 +22,7 @@
     <parent>
         <groupId>com.alibaba.cloud.ai</groupId>
         <artifactId>spring-ai-alibaba</artifactId>
-        <version>${revision}</version>
+        <version>1.1.0.0-msea-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -48,6 +48,18 @@
         <dependency>
             <groupId>io.modelcontextprotocol.sdk</groupId>
             <artifactId>mcp</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.aliyun.msea</groupId>
+            <artifactId>msea-share-biz-monitor</artifactId>
+            <version>5.11.5-jakarta</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.taobao.eagleeye</groupId>
+            <artifactId>eagleeye-core</artifactId>
+            <version>1.10.7</version>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>

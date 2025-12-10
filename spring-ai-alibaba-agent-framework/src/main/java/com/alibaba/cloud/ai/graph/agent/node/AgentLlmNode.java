@@ -26,6 +26,8 @@ import com.alibaba.cloud.ai.graph.agent.interceptor.ModelResponse;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ModelCallHandler;
 import com.alibaba.cloud.ai.graph.agent.interceptor.InterceptorChain;
 
+import com.aliyun.domain.monitor.executor.TransmittableEagleEyeConsumer;
+import com.taobao.eagleeye.EagleEye;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -48,9 +50,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import reactor.core.publisher.Flux;
+import reactor.util.context.Context;
 
 import static com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver.THREAD_ID_DEFAULT;
 
@@ -186,6 +190,31 @@ public class AgentLlmNode implements NodeActionWithConfig {
 						}
 					}
 					Flux<ChatResponse> chatResponseFlux = buildChatClientRequestSpec(request).stream().chatResponse();
+					// modified by liufy start
+					AtomicBoolean firstEventReceived = new AtomicBoolean(false);
+					long startTime = System.currentTimeMillis();
+					if (EagleEye.getTraceId() != null) {
+						chatResponseFlux = chatResponseFlux
+								.contextWrite(Context.of("trace_id", EagleEye.getTraceId()))
+								.doOnNext(new TransmittableEagleEyeConsumer<>() {
+									@Override
+									protected void innerAccept(ChatResponse chatResponse) {
+										if (firstEventReceived.compareAndSet(false, true)) {
+											long timeToFirstByte = System.currentTimeMillis() - startTime;
+											logger.info("invokeLlmStream firstTokenReceived in {} ms", timeToFirstByte);
+										}
+									}
+								})
+//								.doFinally(new TransmittableEagleEyeConsumer<>() {
+//									@Override
+//									protected void innerAccept(SignalType signalType) {
+//										LlmInvokeMeta.THREAD_LOCAL.remove();
+//									}
+//								})
+						;
+					}
+					// modified by liufy end
+
 					if (enableReasoningLog) {
 						chatResponseFlux = chatResponseFlux.doOnNext(chatResponse -> {
 							if (chatResponse != null && chatResponse.getResult() != null && chatResponse.getResult().getOutput() != null) {
