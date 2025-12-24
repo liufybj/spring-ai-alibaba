@@ -37,6 +37,7 @@ import org.springframework.ai.chat.model.Generation;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -329,13 +330,13 @@ public class NodeExecutor extends BaseGraphExecutor {
    */
   private List<ToolCall> mergeToolCalls(List<ToolCall> lastToolCalls, List<ToolCall> currentToolCalls) {
 
+	  // modified by liufy 忽略toolCall id为空的情况
 	  if (lastToolCalls == null || lastToolCalls.isEmpty()) {
-		  return currentToolCalls != null ? currentToolCalls : List.of();
+		  return !ObjectUtils.isEmpty(currentToolCalls) && currentToolCalls.get(0).id() != null ? currentToolCalls : List.of();
 	  }
-	  if (currentToolCalls == null || currentToolCalls.isEmpty()) {
+	  if (currentToolCalls == null || currentToolCalls.isEmpty() || currentToolCalls.get(0).id() == null) {
 		  return lastToolCalls;
 	  }
-
 
 	  Map<String, ToolCall> toolCallMap = new LinkedHashMap<>();
 

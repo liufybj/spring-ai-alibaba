@@ -85,7 +85,13 @@ class ReactAgentTest {
 
 	@Test
 	public void testReactAgent() throws Exception {
-		ReactAgent agent = ReactAgent.builder().name("single_agent").model(chatModel).saver(new MemorySaver()).build();
+		ReactAgent agent = ReactAgent.builder().name("single_agent")
+				.model(chatModel)
+				.chatOptions(DashScopeChatOptions.builder()
+						.model("qwen-plus-max")
+						.build())
+				.saver(new MemorySaver())
+				.build();
 
 		try {
 			Optional<OverAllState> result = agent.invoke("帮我写一篇100字左右散文。");
