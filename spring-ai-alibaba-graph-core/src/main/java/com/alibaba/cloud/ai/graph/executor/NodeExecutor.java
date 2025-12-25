@@ -332,9 +332,9 @@ public class NodeExecutor extends BaseGraphExecutor {
 
 	  // modified by liufy 忽略toolCall id为空的情况
 	  if (lastToolCalls == null || lastToolCalls.isEmpty()) {
-		  return !ObjectUtils.isEmpty(currentToolCalls) && currentToolCalls.get(0).id() != null ? currentToolCalls : List.of();
+		  return !ObjectUtils.isEmpty(currentToolCalls) && currentToolCalls.get(0).id() != null && currentToolCalls.get(0).name() != null ? currentToolCalls : List.of();
 	  }
-	  if (currentToolCalls == null || currentToolCalls.isEmpty() || currentToolCalls.get(0).id() == null) {
+	  if (currentToolCalls == null || currentToolCalls.isEmpty() || currentToolCalls.get(0).id() == null || currentToolCalls.get(0).name() == null) {
 		  return lastToolCalls;
 	  }
 
