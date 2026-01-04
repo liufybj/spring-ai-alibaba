@@ -26,8 +26,11 @@ import com.alibaba.cloud.ai.graph.agent.interceptor.ModelResponse;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ModelCallHandler;
 import com.alibaba.cloud.ai.graph.agent.interceptor.InterceptorChain;
 
+import com.aliyun.domain.monitor.bizlog.BizLog;
 import com.aliyun.domain.monitor.executor.TransmittableEagleEyeConsumer;
+import com.aliyun.domain.monitor.executor.TransmittableEagleEyeTool;
 import com.taobao.eagleeye.EagleEye;
+import com.taobao.eagleeye.RpcContext_inner;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -124,6 +127,7 @@ public class AgentLlmNode implements NodeActionWithConfig {
 	}
 
 	@Override
+	@BizLog(bizDomain = "Graph", opName = "大模型节点", ignoreParams = true, printResult = true)
 	public Map<String, Object> apply(OverAllState state, RunnableConfig config) throws Exception {
 		if (enableReasoningLog && logger.isDebugEnabled()) {
 			logger.debug("[ThreadId {}] Agent {} start reasoning.", config.threadId()
@@ -198,27 +202,23 @@ public class AgentLlmNode implements NodeActionWithConfig {
 						}
 					}
 					Flux<ChatResponse> chatResponseFlux = buildChatClientRequestSpec(request).stream().chatResponse();
+
 					// modified by liufy start
 					AtomicBoolean firstEventReceived = new AtomicBoolean(false);
 					long startTime = System.currentTimeMillis();
+					TransmittableEagleEyeTool transmittableEagleEyeTool = new TransmittableEagleEyeTool();
+
 					if (EagleEye.getTraceId() != null) {
 						chatResponseFlux = chatResponseFlux
 								.contextWrite(Context.of("trace_id", EagleEye.getTraceId()))
-								.doOnNext(new TransmittableEagleEyeConsumer<>() {
-									@Override
-									protected void innerAccept(ChatResponse chatResponse) {
-										if (firstEventReceived.compareAndSet(false, true)) {
-											long timeToFirstByte = System.currentTimeMillis() - startTime;
-											logger.info("invokeLlmStream firstTokenReceived in {} ms", timeToFirstByte);
-										}
+								.doOnNext(chatResponse -> {
+									// 传递父线程的全链路业务日志的上下文
+									transmittableEagleEyeTool.restoreContext();
+									if (firstEventReceived.compareAndSet(false, true)) {
+										long timeToFirstByte = System.currentTimeMillis() - startTime;
+										logger.info("invokeLlmStream firstTokenReceived in {} ms", timeToFirstByte);
 									}
 								})
-//								.doFinally(new TransmittableEagleEyeConsumer<>() {
-//									@Override
-//									protected void innerAccept(SignalType signalType) {
-//										LlmInvokeMeta.THREAD_LOCAL.remove();
-//									}
-//								})
 						;
 					}
 					// modified by liufy end
