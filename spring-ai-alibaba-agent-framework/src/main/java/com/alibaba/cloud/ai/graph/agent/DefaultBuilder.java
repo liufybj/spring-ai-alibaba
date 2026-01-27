@@ -22,6 +22,7 @@ import com.alibaba.cloud.ai.graph.agent.node.AgentLlmNode;
 import com.alibaba.cloud.ai.graph.agent.node.AgentToolNode;
 import io.micrometer.observation.ObservationRegistry;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -82,6 +83,10 @@ public class DefaultBuilder extends Builder {
 
 		if (systemPrompt != null) {
 			llmNodeBuilder.systemPrompt(systemPrompt);
+		}
+
+		if (systemPromptSupplier != null) {
+			llmNodeBuilder.systemPromptSupplier(systemPromptSupplier);
 		}
 
 		String outputSchema = null;
@@ -207,6 +212,10 @@ public class DefaultBuilder extends Builder {
 
 		if (enableLogging) {
 			llmNodeBuilder.enableReasoningLog(true);
+		}
+
+		if (ObjectUtils.isNotEmpty(advisors)) {
+			llmNodeBuilder.advisors(advisors);
 		}
 
 		AgentLlmNode llmNode = llmNodeBuilder.build();

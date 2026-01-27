@@ -32,6 +32,7 @@ import com.aliyun.domain.monitor.executor.TransmittableEagleEyeTool;
 import com.taobao.eagleeye.EagleEye;
 import com.taobao.eagleeye.RpcContext_inner;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.DefaultChatClient;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
@@ -45,6 +46,7 @@ import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 
+import org.springframework.util.ReflectionUtils;
 import org.springframework.util.StringUtils;
 
 import org.slf4j.Logger;
@@ -56,6 +58,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import reactor.core.publisher.Flux;
 import reactor.util.context.Context;
@@ -84,6 +87,8 @@ public class AgentLlmNode implements NodeActionWithConfig {
 
 	private String systemPrompt;
 
+	protected Supplier<String> systemPromptSupplier;
+
 	private String instruction;
 
 	private ToolCallingChatOptions chatOptions;
@@ -95,6 +100,7 @@ public class AgentLlmNode implements NodeActionWithConfig {
 		this.outputKey = builder.outputKey;
 		this.outputSchema = builder.outputSchema;
 		this.systemPrompt = builder.systemPrompt;
+		this.systemPromptSupplier = builder.systemPromptSupplier;
 		this.instruction = builder.instruction;
 		if (builder.advisors != null) {
 			this.advisors = builder.advisors;
@@ -160,11 +166,19 @@ public class AgentLlmNode implements NodeActionWithConfig {
 		augmentUserMessage(messages, outputSchema);
 		renderTemplatedUserMessage(messages, state.data());
 
+		// 将模型名称放到ModelRequest的context中
+		ToolCallingChatOptions options = chatOptions.copy();
+		String model = options.getModel() != null ? options.getModel() : ((DefaultChatClient) chatClient).getDefaultChatClientRequest().getChatOptions().getModel();
+		Map<String, Object> context = config.metadata().orElse(new HashMap<>());
+		if (model != null) {
+			context.put("model_name", model);
+		}
+
 		// Create ModelRequest
 		ModelRequest.Builder requestBuilder = ModelRequest.builder()
 				.messages(messages)
-				.options(chatOptions.copy())
-				.context(config.metadata().orElse(new HashMap<>()));
+				.options(options)
+				.context(context);
 
         // Extract tool names and descriptions from toolCallbacks and pass them to ModelRequest
         if (toolCallbacks != null && !toolCallbacks.isEmpty()) {
@@ -184,6 +198,10 @@ public class AgentLlmNode implements NodeActionWithConfig {
 
 		if (StringUtils.hasLength(this.systemPrompt)) {
 			requestBuilder.systemMessage(new SystemMessage(this.systemPrompt));
+		}
+
+		if (this.systemPromptSupplier != null) {
+			requestBuilder.systemMessage(new SystemMessage(this.systemPromptSupplier.get()));
 		}
 
 		ModelRequest modelRequest = requestBuilder.build();
@@ -509,6 +527,8 @@ public class AgentLlmNode implements NodeActionWithConfig {
 
 		private String systemPrompt;
 
+		private Supplier<String> systemPromptSupplier;
+
 		private ChatClient chatClient;
 
 		private List<Advisor> advisors;
@@ -540,6 +560,11 @@ public class AgentLlmNode implements NodeActionWithConfig {
 
 		public Builder systemPrompt(String systemPrompt) {
 			this.systemPrompt = systemPrompt;
+			return this;
+		}
+
+		public Builder systemPromptSupplier(Supplier<String> systemPromptSupplier) {
+			this.systemPromptSupplier = systemPromptSupplier;
 			return this;
 		}
 

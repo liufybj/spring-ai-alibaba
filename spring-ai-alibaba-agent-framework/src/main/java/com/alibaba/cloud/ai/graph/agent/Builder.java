@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 import com.alibaba.cloud.ai.graph.CompileConfig;
 import com.alibaba.cloud.ai.graph.KeyStrategy;
@@ -37,6 +38,7 @@ import com.alibaba.cloud.ai.graph.serializer.std.SpringAIStateSerializer;
 import io.micrometer.observation.ObservationRegistry;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.client.advisor.observation.AdvisorObservationConvention;
 import org.springframework.ai.chat.client.observation.ChatClientObservationConvention;
 import org.springframework.ai.chat.model.ChatModel;
@@ -58,6 +60,8 @@ public abstract class Builder {
 	protected String instruction;
 
 	protected String systemPrompt;
+
+	protected Supplier<String> systemPromptSupplier;
 
 	protected ChatModel model;
 
@@ -112,6 +116,13 @@ public abstract class Builder {
 	protected StateSerializer stateSerializer;
 	
 	protected Executor executor;
+
+	protected List<Advisor> advisors;
+
+	public Builder advisors(List<Advisor> advisors) {
+		this.advisors = advisors;
+		return this;
+	}
 
 	public Builder name(String name) {
 		this.name = name;
@@ -216,6 +227,11 @@ public abstract class Builder {
 
 	public Builder systemPrompt(String systemPrompt) {
 		this.systemPrompt = systemPrompt;
+		return this;
+	}
+
+	public Builder systemPromptSupplier(Supplier<String> systemPromptSupplier) {
+		this.systemPromptSupplier = systemPromptSupplier;
 		return this;
 	}
 
