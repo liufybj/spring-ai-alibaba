@@ -26,6 +26,11 @@ import com.alibaba.cloud.ai.graph.agent.interceptor.ModelResponse;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ModelCallHandler;
 import com.alibaba.cloud.ai.graph.agent.interceptor.InterceptorChain;
 
+import com.aliyun.domain.monitor.bizlog.BizLog;
+import com.aliyun.domain.monitor.executor.TransmittableEagleEyeConsumer;
+import com.aliyun.domain.monitor.executor.TransmittableEagleEyeTool;
+import com.taobao.eagleeye.EagleEye;
+import com.taobao.eagleeye.RpcContext_inner;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.DefaultChatClient;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
@@ -43,6 +48,7 @@ import org.springframework.ai.template.TemplateRenderer;
 import org.springframework.ai.tool.ToolCallback;
 
 import org.springframework.lang.Nullable;
+import org.springframework.util.ReflectionUtils;
 import org.springframework.util.StringUtils;
 
 import org.slf4j.Logger;
@@ -52,9 +58,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import reactor.core.publisher.Flux;
+import reactor.util.context.Context;
 
 import static com.alibaba.cloud.ai.graph.RunnableConfig.AGENT_MODEL_NAME;
 import static com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver.THREAD_ID_DEFAULT;
@@ -82,6 +91,8 @@ public class AgentLlmNode implements NodeActionWithConfig {
 
 	private TemplateRenderer templateRenderer;
 
+	protected Supplier<String> systemPromptSupplier;
+
 	private String instruction;
 
 	private ToolCallingChatOptions chatOptions;
@@ -93,6 +104,7 @@ public class AgentLlmNode implements NodeActionWithConfig {
 		this.outputKey = builder.outputKey;
 		this.outputSchema = builder.outputSchema;
 		this.systemPrompt = builder.systemPrompt;
+		this.systemPromptSupplier = builder.systemPromptSupplier;
 		this.instruction = builder.instruction;
 		this.templateRenderer = builder.templateRenderer;
 		if (builder.advisors != null) {
@@ -130,6 +142,7 @@ public class AgentLlmNode implements NodeActionWithConfig {
 	}
 
 	@Override
+	@BizLog(bizDomain = "Graph", opName = "大模型节点", ignoreParams = true, printResult = true)
 	public Map<String, Object> apply(OverAllState state, RunnableConfig config) throws Exception {
 		if (enableReasoningLog && logger.isDebugEnabled()) {
 			logger.debug("[ThreadId {}] Agent {} start reasoning.", config.threadId()
@@ -162,11 +175,19 @@ public class AgentLlmNode implements NodeActionWithConfig {
 		augmentUserMessage(messages, outputSchema);
 		renderTemplatedUserMessage(messages, state.data());
 
+		// 将模型名称放到ModelRequest的context中
+		ToolCallingChatOptions options = chatOptions.copy();
+		String model = options.getModel() != null ? options.getModel() : ((DefaultChatClient) chatClient).getDefaultChatClientRequest().getChatOptions().getModel();
+		Map<String, Object> context = config.metadata().orElse(new HashMap<>());
+		if (model != null) {
+			context.put("model_name", model);
+		}
+
 		// Create ModelRequest
 		ModelRequest.Builder requestBuilder = ModelRequest.builder()
 				.messages(messages)
-				.options(this.chatOptions != null ? this.chatOptions.copy() : null)
-				.context(config.metadata().orElse(new HashMap<>()));
+				.options(options)
+				.context(context);
 
         // Extract tool names and descriptions from toolCallbacks and pass them to ModelRequest
         if (toolCallbacks != null && !toolCallbacks.isEmpty()) {
@@ -186,6 +207,10 @@ public class AgentLlmNode implements NodeActionWithConfig {
 
 		if (StringUtils.hasLength(this.systemPrompt)) {
 			requestBuilder.systemMessage(new SystemMessage(this.systemPrompt));
+		}
+
+		if (this.systemPromptSupplier != null) {
+			requestBuilder.systemMessage(new SystemMessage(this.systemPromptSupplier.get()));
 		}
 
 		if (StringUtils.hasLength(this.instruction)) {
@@ -211,6 +236,27 @@ public class AgentLlmNode implements NodeActionWithConfig {
 						}
 					}
 					Flux<ChatResponse> chatResponseFlux = buildChatClientRequestSpec(request).stream().chatResponse();
+
+					// modified by liufy start
+					AtomicBoolean firstEventReceived = new AtomicBoolean(false);
+					long startTime = System.currentTimeMillis();
+					TransmittableEagleEyeTool transmittableEagleEyeTool = new TransmittableEagleEyeTool();
+
+					if (EagleEye.getTraceId() != null) {
+						chatResponseFlux = chatResponseFlux
+								.contextWrite(Context.of("trace_id", EagleEye.getTraceId()))
+								.doOnNext(chatResponse -> {
+									// 传递父线程的全链路业务日志的上下文
+									transmittableEagleEyeTool.restoreContext();
+									if (firstEventReceived.compareAndSet(false, true)) {
+										long timeToFirstByte = System.currentTimeMillis() - startTime;
+										logger.info("invokeLlmStream firstTokenReceived in {} ms", timeToFirstByte);
+									}
+								})
+						;
+					}
+					// modified by liufy end
+
 					if (enableReasoningLog) {
 						chatResponseFlux = chatResponseFlux.doOnNext(chatResponse -> {
 							if (chatResponse != null && chatResponse.getResult() != null && chatResponse.getResult().getOutput() != null) {
@@ -524,6 +570,8 @@ public class AgentLlmNode implements NodeActionWithConfig {
 
 		private TemplateRenderer templateRenderer;
 
+		private Supplier<String> systemPromptSupplier;
+
 		private ChatClient chatClient;
 
 		private List<Advisor> advisors;
@@ -560,6 +608,11 @@ public class AgentLlmNode implements NodeActionWithConfig {
 
 		public Builder templateRenderer(TemplateRenderer templateRenderer) {
 			this.templateRenderer = templateRenderer;
+			return this;
+		}
+
+		public Builder systemPromptSupplier(Supplier<String> systemPromptSupplier) {
+			this.systemPromptSupplier = systemPromptSupplier;
 			return this;
 		}
 

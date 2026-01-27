@@ -26,6 +26,7 @@ import com.alibaba.cloud.ai.graph.agent.interceptor.ToolCallResponse;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ToolCallHandler;
 import com.alibaba.cloud.ai.graph.agent.interceptor.InterceptorChain;
 
+import com.aliyun.domain.monitor.bizlog.BizLog;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
@@ -98,6 +99,7 @@ public class AgentToolNode implements NodeActionWithConfig {
 	}
 
 	@Override
+	@BizLog(bizDomain = "Graph", opName = "工具节点", ignoreParamIndexes = {1}, printResult = true)
 	public Map<String, Object> apply(OverAllState state, RunnableConfig config) throws Exception {
 		List<Message> messages = (List<Message>) state.value("messages").orElseThrow();
 		Message lastMessage = messages.get(messages.size() - 1);
