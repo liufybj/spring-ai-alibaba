@@ -155,6 +155,11 @@ public class DefaultBuilder extends Builder {
 		if (enableLogging) {
 			toolBuilder.enableActingLog(true);
 		}
+
+		if (ObjectUtils.isNotEmpty(advisors)) {
+			llmNodeBuilder.advisors(advisors);
+		}
+
 		if (toolExecutionExceptionProcessor == null) {
 			toolBuilder.toolExecutionExceptionProcessor(DefaultToolExecutionExceptionProcessor.builder()
 					.alwaysThrow(false)
@@ -166,6 +171,11 @@ public class DefaultBuilder extends Builder {
 		if (toolContext != null && !toolContext.isEmpty()) {
 			toolBuilder.toolContext(toolContext);
 		}
+
+//		if (toolCallExecutor != null) {
+//			toolCallExecutor.init(toolBuilder);
+//			toolBuilder.toolCallStreamExecutor(toolCallExecutor);
+//		}
 
 		toolNode = toolBuilder.build();
 

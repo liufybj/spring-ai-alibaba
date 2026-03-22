@@ -89,7 +89,7 @@ public abstract class Builder {
 
 	protected Map<String, Object> toolContext = new HashMap<>();
 
-	protected ToolCallExecutor toolCallExecutor;
+//	protected ToolCallExecutor toolCallExecutor;
 
 	protected boolean releaseThread;
 
@@ -156,10 +156,10 @@ public abstract class Builder {
 		return this;
 	}
 
-	public Builder toolCallExecutor(ToolCallExecutor toolCallExecutor) {
-		this.toolCallExecutor = toolCallExecutor;
-		return this;
-	}
+//	public Builder toolCallExecutor(ToolCallExecutor toolCallExecutor) {
+//		this.toolCallExecutor = toolCallExecutor;
+//		return this;
+//	}
 
 	public Builder chatOptions(ChatOptions chatOptions) {
 		this.chatOptions = chatOptions;
