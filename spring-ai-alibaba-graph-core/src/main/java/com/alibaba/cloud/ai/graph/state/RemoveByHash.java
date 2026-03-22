@@ -32,7 +32,7 @@ public record RemoveByHash<T>(T value) implements AppenderChannel.RemoveIdentifi
 	 */
 	@Override
 	public int compareTo(T element, int atIndex) {
-		return Objects.hashCode(value) - Objects.hashCode(element);
+		return Objects.equals(value, element) ? 0 : 1;
 	}
 
 	/**

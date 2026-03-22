@@ -44,6 +44,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 
 import org.springframework.util.ReflectionUtils;
@@ -172,6 +173,9 @@ public class AgentLlmNode implements NodeActionWithConfig {
 		Map<String, Object> context = config.metadata().orElse(new HashMap<>());
 		if (model != null) {
 			context.put("model_name", model);
+		}
+		if (config.metadata("_http_headers").isPresent() && options instanceof OpenAiChatOptions openAiChatOptions) {
+			openAiChatOptions.setHttpHeaders((Map<String, String>) config.metadata("_http_headers").get());
 		}
 
 		// Create ModelRequest

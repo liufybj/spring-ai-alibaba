@@ -30,6 +30,7 @@ import com.alibaba.cloud.ai.graph.agent.hook.Hook;
 import com.alibaba.cloud.ai.graph.agent.interceptor.Interceptor;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ModelInterceptor;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ToolInterceptor;
+import com.alibaba.cloud.ai.graph.agent.node.ToolCallExecutor;
 import com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver;
 import com.alibaba.cloud.ai.graph.checkpoint.config.SaverConfig;
 
@@ -80,6 +81,8 @@ public abstract class Builder {
 	protected ToolExecutionExceptionProcessor toolExecutionExceptionProcessor;
 
 	protected Map<String, Object> toolContext = new HashMap<>();
+
+	protected ToolCallExecutor toolCallExecutor;
 
 	protected boolean releaseThread;
 
@@ -137,6 +140,11 @@ public abstract class Builder {
 
 	public Builder model(ChatModel model) {
 		this.model = model;
+		return this;
+	}
+
+	public Builder toolCallExecutor(ToolCallExecutor toolCallExecutor) {
+		this.toolCallExecutor = toolCallExecutor;
 		return this;
 	}
 

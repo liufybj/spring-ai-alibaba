@@ -16,6 +16,7 @@
 package com.alibaba.cloud.ai.graph.serializer.plain_text.jackson;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -27,6 +28,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 class SerializationHelper {
 
 	static final String METADATA_FIELD = "metadata";
+
+	/**
+	 * Internal metadata key used by Spring AI to store the message type.
+	 * This field should be excluded during serialization as it's automatically
+	 * set by the message builder during deserialization.
+	 */
+	private static final String MESSAGE_TYPE_KEY = "messageType";
 
 	static Map<String, Object> deserializeMetadata(ObjectMapper mapper, JsonNode parentNode)
 			throws JsonProcessingException {
@@ -47,7 +55,10 @@ class SerializationHelper {
 	}
 
 	static void serializeMetadata(JsonGenerator gen, Map<String, Object> metadata) throws IOException {
-		gen.writeObjectField(METADATA_FIELD, metadata);
+		// Filter out internal messageType field as it's automatically set by the message builder
+		Map<String, Object> filteredMetadata = new HashMap<>(metadata);
+		filteredMetadata.remove(MESSAGE_TYPE_KEY);
+		gen.writeObjectField(METADATA_FIELD, filteredMetadata);
 	}
 
 }

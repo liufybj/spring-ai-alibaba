@@ -246,6 +246,11 @@ public class DefaultBuilder extends Builder {
 			toolBuilder.toolContext(toolContext);
 		}
 
+		if (toolCallExecutor != null) {
+			toolCallExecutor.init(toolBuilder);
+			toolBuilder.toolCallStreamExecutor(toolCallExecutor);
+		}
+
 		toolNode = toolBuilder.build();
 
 		return new ReactAgent(llmNode, toolNode, buildConfig(), this);

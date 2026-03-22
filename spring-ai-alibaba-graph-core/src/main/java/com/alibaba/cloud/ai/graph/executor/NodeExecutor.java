@@ -30,6 +30,12 @@ import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.AssistantMessage.ToolCall;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -252,8 +258,9 @@ public class NodeExecutor extends BaseGraphExecutor {
 					}
 					GraphResponse<NodeOutput> lastGraphResponse = GraphResponse
 						.of(context.buildStreamingOutput(response.getResult().getOutput(), response, nodeId, true));
-					 lastGraphResponseRef.set(lastGraphResponse);
-					return lastGraphResponse;
+					lastGraphResponseRef.set(lastGraphResponse);
+
+                    return lastGraphResponse;
 				}
 				else if (element instanceof GraphResponse) {
 					GraphResponse<NodeOutput> graphResponse = (GraphResponse<NodeOutput>) element;
@@ -369,6 +376,10 @@ public class NodeExecutor extends BaseGraphExecutor {
 			MainGraphExecutor mainGraphExecutor, GraphRunnerContext context,
 			Flux<GraphResponse<NodeOutput>> embedFlux, Map<String, Object> partialState,
 			AtomicReference<Object> resultValue) {
+		// Create a defensive copy to avoid ConcurrentModificationException
+		// when partialState is accessed concurrently in reactive streams
+		Map<String, Object> safePartialState = new HashMap<>(partialState);
+
 		AtomicReference<GraphResponse<NodeOutput>> lastData = new AtomicReference<>();
 
 		Flux<GraphResponse<NodeOutput>> processedFlux = embedFlux.map(data -> {
@@ -405,9 +416,9 @@ public class NodeExecutor extends BaseGraphExecutor {
 				return;
 			}
 
-			Map<String, Object> partialStateWithoutFlux = partialState.entrySet()
+			Map<String, Object> partialStateWithoutFlux = safePartialState.entrySet()
 					.stream()
-					.filter(e -> !(e.getValue() instanceof Flux) 
+					.filter(e -> !(e.getValue() instanceof Flux)
 							&& !(e.getValue() instanceof GraphFlux)
 							&& !(e.getValue() instanceof ParallelGraphFlux))
 					.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -556,13 +567,16 @@ public class NodeExecutor extends BaseGraphExecutor {
 	private Flux<GraphResponse<NodeOutput>> handleGraphFlux(GraphRunnerContext context,
 															GraphFlux<?> graphFlux, Map<String, Object> partialState,
 															AtomicReference<Object> resultValue) {
+		// Create a defensive copy to avoid ConcurrentModificationException
+		// when partialState is accessed concurrently in reactive streams
+		Map<String, Object> safePartialState = new HashMap<>(partialState);
 
 		// Use nodeId from GraphFlux instead of context to preserve real node identity
 		String effectiveNodeId = graphFlux.getNodeId();
 		AtomicReference<Object> lastDataRef = new AtomicReference<>();
 
 		// Process the GraphFlux stream with preserved node ID
-		Flux<GraphResponse<NodeOutput>> processedFlux = transformGraphFluxToFlux(context, graphFlux, partialState, lastDataRef);
+		Flux<GraphResponse<NodeOutput>> processedFlux = transformGraphFluxToFlux(context, graphFlux, safePartialState, lastDataRef);
 
 		// Handle completion and result mapping
 		Mono<Void> updateContextMono = Mono.fromRunnable(() -> {
@@ -579,7 +593,7 @@ public class NodeExecutor extends BaseGraphExecutor {
 			resultMap.put(graphFlux.getKey(), lastData);
 
 			// Merge non-GraphFlux state
-			Map<String, Object> partialStateWithoutGraphFlux = partialState.entrySet()
+			Map<String, Object> partialStateWithoutGraphFlux = safePartialState.entrySet()
 					.stream()
 					.filter(e -> !(e.getValue() instanceof GraphFlux))
 					.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -618,10 +632,13 @@ public class NodeExecutor extends BaseGraphExecutor {
 	private Flux<GraphResponse<NodeOutput>> handleParallelGraphFlux(GraphRunnerContext context,
 																	ParallelGraphFlux parallelGraphFlux, Map<String, Object> partialState,
 																	AtomicReference<Object> resultValue) throws Exception {
+		// Create a defensive copy to avoid ConcurrentModificationException
+		// when partialState is accessed concurrently in reactive streams
+		Map<String, Object> safePartialState = new HashMap<>(partialState);
 
 		if (parallelGraphFlux.isEmpty()) {
 			// Handle empty ParallelGraphFlux
-			return handleNonStreamingResult(context, partialState, resultValue);
+			return handleNonStreamingResult(context, safePartialState, resultValue);
 		}
 
 		Map<String, AtomicReference<Object>> nodeDataRefs = new HashMap<>();
@@ -642,7 +659,7 @@ public class NodeExecutor extends BaseGraphExecutor {
 					AtomicReference<Object> nodeDataRef = new AtomicReference<>();
 					nodeDataRefs.put(nodeId, nodeDataRef);
 
-					return transformGraphFluxToFlux(context, graphFlux, partialState, nodeDataRef)
+					return transformGraphFluxToFlux(context, graphFlux, safePartialState, nodeDataRef)
 							.subscribeOn(scheduler);
 				}).collect(Collectors.toList());
 		
@@ -663,7 +680,7 @@ public class NodeExecutor extends BaseGraphExecutor {
 			}
 
 			// Merge non-ParallelGraphFlux state
-			Map<String, Object> partialStateWithoutParallelGraphFlux = partialState.entrySet()
+			Map<String, Object> partialStateWithoutParallelGraphFlux = safePartialState.entrySet()
 					.stream()
 					.filter(e -> !(e.getValue() instanceof ParallelGraphFlux))
 					.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));

@@ -26,6 +26,8 @@ import com.alibaba.cloud.ai.graph.agent.interceptor.ToolCallHandler;
 import com.alibaba.cloud.ai.graph.agent.interceptor.InterceptorChain;
 
 import com.aliyun.domain.monitor.bizlog.BizLog;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
@@ -72,6 +74,9 @@ public class AgentToolNode implements NodeActionWithConfig {
 
 	private ToolExecutionExceptionProcessor toolExecutionExceptionProcessor;
 
+	@Getter
+	private final ToolCallExecutor toolCallExecutor;
+
 	public AgentToolNode(Builder builder) {
 		this.agentName = builder.agentName;
 		this.enableActingLog = builder.enableActingLog;
@@ -79,18 +84,22 @@ public class AgentToolNode implements NodeActionWithConfig {
 		this.toolCallbacks = builder.toolCallbacks;
 		this.toolContext = builder.toolContext;
         this.toolExecutionExceptionProcessor = builder.toolExecutionExceptionProcessor;
+		this.toolCallExecutor = builder.toolCallExecutor == null ? new DefaultToolCallExecutor(builder) : builder.toolCallExecutor;
     }
 
 	public void setToolCallbacks(List<ToolCallback> toolCallbacks) {
 		this.toolCallbacks = toolCallbacks;
+		this.toolCallExecutor.setToolCallbacks(toolCallbacks);
 	}
 
 	public void setToolInterceptors(List<ToolInterceptor> toolInterceptors) {
 		this.toolInterceptors = toolInterceptors;
+		this.toolCallExecutor.setToolInterceptors(toolInterceptors);
 	}
 
 	void setToolCallbackResolver(ToolCallbackResolver toolCallbackResolver) {
 		this.toolCallbackResolver = toolCallbackResolver;
+		this.toolCallExecutor.setToolCallbackResolver(toolCallbackResolver);
 	}
 
 	public List<ToolCallback> getToolCallbacks() {
@@ -115,7 +124,7 @@ public class AgentToolNode implements NodeActionWithConfig {
 
 			for (AssistantMessage.ToolCall toolCall : assistantMessage.getToolCalls()) {
 				// Execute tool call with interceptor chain
-				ToolCallResponse response = executeToolCallWithInterceptors(toolCall, state, config, extraStateFromToolCall);
+				ToolCallResponse response = this.toolCallExecutor.executeToolCallWithInterceptors(toolCall, state, config, extraStateFromToolCall);
 				toolResponses.add(response.toToolResponse());
 			}
 
@@ -154,7 +163,7 @@ public class AgentToolNode implements NodeActionWithConfig {
 				}
 
 				// Execute tool call with interceptor chain
-				ToolCallResponse response = executeToolCallWithInterceptors(toolCall, state, config, extraStateFromToolCall);
+				ToolCallResponse response = this.toolCallExecutor.executeToolCallWithInterceptors(toolCall, state, config, extraStateFromToolCall);
 				allResponses.add(response.toToolResponse());
 			}
 
@@ -183,77 +192,6 @@ public class AgentToolNode implements NodeActionWithConfig {
 		return updatedState;
 	}
 
-	/**
-	 * Execute a tool call with interceptor chain support.
-	 */
-	private ToolCallResponse executeToolCallWithInterceptors(
-			AssistantMessage.ToolCall toolCall,
-			OverAllState state,
-			RunnableConfig config,
-			Map<String, Object> extraStateFromToolCall) {
-
-		// Create ToolCallRequest
-		ToolCallRequest request = ToolCallRequest.builder()
-				.toolCall(toolCall)
-				.context(config.metadata().orElse(new HashMap<>()))
-				.build();
-
-		// Create base handler that actually executes the tool
-		ToolCallHandler baseHandler = req -> {
-			ToolCallback toolCallback = resolve(req.getToolName());
-
-			if (toolCallback == null) {
-				logger.warn(POSSIBLE_LLM_TOOL_NAME_CHANGE_WARNING, req.getToolName());
-				throw new IllegalStateException("No ToolCallback found for tool name: " + req.getToolName());
-			}
-
-			if (enableActingLog) {
-				logger.info("[ThreadId {}] Agent {} acting, executing tool {}.", config.threadId().orElse(THREAD_ID_DEFAULT), agentName, req.getToolName());
-			}
-
-			String result;
-			try {
-				// Handle FunctionToolCallback and MethodToolCallback, which support passing state and config in ToolContext.
-				if (toolCallback instanceof FunctionToolCallback<?, ?> || toolCallback instanceof MethodToolCallback) {
-					Map<String, Object> toolContextMap = new HashMap<>(toolContext);
-					toolContextMap.putAll(Map.of(AGENT_STATE_CONTEXT_KEY, state, AGENT_CONFIG_CONTEXT_KEY, config, AGENT_STATE_FOR_UPDATE_CONTEXT_KEY, extraStateFromToolCall));
-					result = toolCallback.call(req.getArguments(), new ToolContext(toolContextMap));
-				} else {
-					// FIXME, currently MCP Tool does not support State and RunnableConfig transmission in ToolContext.
-					result = toolCallback.call(req.getArguments(), new ToolContext(toolContext));
-				}
-
-				if (enableActingLog) {
-					logger.info("[ThreadId {}] Agent {} acting, tool {} finished", config.threadId()
-									.orElse(THREAD_ID_DEFAULT), agentName, req.getToolName());
-					if (logger.isDebugEnabled()) {
-						logger.debug("Tool {} returned: {}", req.getToolName(), result);
-					}
-				}
-			} catch (ToolExecutionException e) {
-				logger.error("[ThreadId {}] Agent {} acting, tool {} execution failed, handle to {} processor to decide the next move (terminate or continue). "
-						, config.threadId().orElse(THREAD_ID_DEFAULT), agentName, req.getToolName(), toolExecutionExceptionProcessor.getClass().getName(), e);
-				result = toolExecutionExceptionProcessor.process(e);
-			}
-
-			return ToolCallResponse.of(req.getToolCallId(), req.getToolName(), result);
-		};
-
-		// Chain interceptors if any
-		ToolCallHandler chainedHandler = InterceptorChain.chainToolInterceptors(
-			toolInterceptors, baseHandler);
-
-		// Execute the chained handler
-		return chainedHandler.call(request);
-	}
-
-	private ToolCallback resolve(String toolName) {
-		return toolCallbacks.stream()
-			.filter(callback -> callback.getToolDefinition().name().equals(toolName))
-			.findFirst()
-			.orElseGet(() -> toolCallbackResolver == null ? null : toolCallbackResolver.resolve(toolName));
-	}
-
 	public String getName() {
 		return AGENT_TOOL_NAME;
 	}
@@ -262,6 +200,7 @@ public class AgentToolNode implements NodeActionWithConfig {
 		return new Builder();
 	}
 
+	@Getter
 	public static class Builder {
 
 		private String agentName;
@@ -276,7 +215,14 @@ public class AgentToolNode implements NodeActionWithConfig {
 
 		private ToolExecutionExceptionProcessor toolExecutionExceptionProcessor;
 
+		private ToolCallExecutor toolCallExecutor;
+
 		private Builder() {
+		}
+
+		public Builder toolCallStreamExecutor(ToolCallExecutor toolCallExecutor) {
+			this.toolCallExecutor = toolCallExecutor;
+			return this;
 		}
 
 		public Builder agentName(String agentName) {
@@ -315,4 +261,134 @@ public class AgentToolNode implements NodeActionWithConfig {
 
 	}
 
+	@Slf4j
+	public static class DefaultToolCallExecutor implements ToolCallExecutor {
+		protected boolean enableActingLog;
+
+		protected String agentName;
+
+		protected List<ToolCallback> toolCallbacks;
+
+		protected Map<String, Object> toolContext;
+
+		protected List<ToolInterceptor> toolInterceptors = new ArrayList<>();
+
+		protected ToolCallbackResolver toolCallbackResolver;
+
+		protected ToolExecutionExceptionProcessor toolExecutionExceptionProcessor;
+
+		public DefaultToolCallExecutor() {
+
+		}
+
+		public DefaultToolCallExecutor(Builder builder) {
+			this.agentName = builder.agentName;
+			this.enableActingLog = builder.enableActingLog;
+			this.toolCallbackResolver = builder.toolCallbackResolver;
+			this.toolCallbacks = builder.toolCallbacks;
+			this.toolContext = builder.toolContext;
+			this.toolExecutionExceptionProcessor = builder.toolExecutionExceptionProcessor;
+		}
+
+		@Override
+		public void init(Builder builder) {
+			// 默认通过构造函数初始化
+		}
+
+		@Override
+		public void setToolCallbacks(List<ToolCallback> toolCallbacks) {
+			this.toolCallbacks = toolCallbacks;
+		}
+
+		@Override
+		public void setToolInterceptors(List<ToolInterceptor> toolInterceptors) {
+			this.toolInterceptors = toolInterceptors;
+		}
+
+		@Override
+		public void setToolCallbackResolver(ToolCallbackResolver toolCallbackResolver) {
+			this.toolCallbackResolver = toolCallbackResolver;
+		}
+
+		@Override
+		public void preExecuteToolCallWithInterceptors(AssistantMessage.ToolCall toolCall, OverAllState state, RunnableConfig config) {
+			// 默认不实现
+		}
+
+		/**
+		 * Execute a tool call with interceptor chain support.
+		 */
+		public ToolCallResponse executeToolCallWithInterceptors(
+				AssistantMessage.ToolCall toolCall,
+				OverAllState state,
+				RunnableConfig config,
+				Map<String, Object> extraStateFromToolCall) {
+
+			// Create ToolCallRequest
+			ToolCallRequest request = ToolCallRequest.builder()
+					.toolCall(toolCall)
+					.context(config.metadata().orElse(new HashMap<>()))
+					.build();
+
+			// Create base handler that actually executes the tool
+			ToolCallHandler baseHandler = req -> {
+				ToolCallback toolCallback = resolve(req.getToolName());
+
+				if (toolCallback == null) {
+					log.warn(POSSIBLE_LLM_TOOL_NAME_CHANGE_WARNING, req.getToolName());
+					throw new IllegalStateException("No ToolCallback found for tool name: " + req.getToolName());
+				}
+
+				if (enableActingLog) {
+					log.info("[ThreadId {}] Agent {} acting, executing tool {}.", config.threadId().orElse(THREAD_ID_DEFAULT), agentName, req.getToolName());
+				}
+
+				String result;
+				try {
+					// Handle FunctionToolCallback and MethodToolCallback, which support passing state and config in ToolContext.
+					if (toolCallback instanceof FunctionToolCallback<?, ?> || toolCallback instanceof MethodToolCallback) {
+						Map<String, Object> toolContextMap = new HashMap<>(toolContext);
+						toolContextMap.putAll(Map.of(AGENT_STATE_CONTEXT_KEY, state, AGENT_CONFIG_CONTEXT_KEY, config, AGENT_STATE_FOR_UPDATE_CONTEXT_KEY, extraStateFromToolCall));
+						result = toolCallback.call(req.getArguments(), new ToolContext(toolContextMap));
+					} else {
+						// FIXME, currently MCP Tool does not support State and RunnableConfig transmission in ToolContext.
+						result = toolCallback.call(req.getArguments(), new ToolContext(toolContext));
+					}
+
+					if (enableActingLog) {
+						log.info("[ThreadId {}] Agent {} acting, tool {} finished", config.threadId()
+								.orElse(THREAD_ID_DEFAULT), agentName, req.getToolName());
+						if (log.isDebugEnabled()) {
+							log.debug("Tool {} returned: {}", req.getToolName(), result);
+						}
+					}
+				} catch (ToolExecutionException e) {
+					log.error("[ThreadId {}] Agent {} acting, tool {} execution failed, handle to {} processor to decide the next move (terminate or continue). "
+							, config.threadId().orElse(THREAD_ID_DEFAULT), agentName, req.getToolName(), toolExecutionExceptionProcessor.getClass().getName(), e);
+					result = toolExecutionExceptionProcessor.process(e);
+				}
+
+				return ToolCallResponse.of(req.getToolCallId(), req.getToolName(), result);
+			};
+
+			// Chain interceptors if any
+			ToolCallHandler chainedHandler = InterceptorChain.chainToolInterceptors(
+					toolInterceptors, baseHandler);
+
+			// Execute the chained handler
+			return chainedHandler.call(request);
+		}
+
+		@Override
+		public void allToolCallExecuteFinish() {
+
+		}
+
+		protected ToolCallback resolve(String toolName) {
+			return toolCallbacks.stream()
+					.filter(callback -> callback.getToolDefinition().name().equals(toolName))
+					.findFirst()
+					.orElseGet(() -> toolCallbackResolver == null ? null : toolCallbackResolver.resolve(toolName));
+		}
+	}
 }

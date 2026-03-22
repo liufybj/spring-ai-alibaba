@@ -57,6 +57,7 @@ import com.alibaba.cloud.ai.graph.state.strategy.AppendStrategy;
 import com.alibaba.cloud.ai.graph.state.strategy.ReplaceStrategy;
 import com.alibaba.cloud.ai.graph.utils.TypeRef;
 
+import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -99,6 +100,7 @@ public class ReactAgent extends BaseAgent {
 
 	private final AgentLlmNode llmNode;
 
+	@Getter
 	private final AgentToolNode toolNode;
 
 	private List<? extends Hook> hooks;

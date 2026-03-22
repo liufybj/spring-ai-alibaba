@@ -29,6 +29,7 @@ import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.content.Media;
 import org.springframework.ai.deepseek.DeepSeekAssistantMessage;
 import org.springframework.ai.document.Document;
 
@@ -56,6 +57,7 @@ public class SpringAIJacksonStateSerializer extends JacksonStateSerializer {
 		}).register(new TypeMapper.Reference<SystemMessage>(MessageType.SYSTEM.name()) {
 		}).register(new TypeMapper.Reference<UserMessage>(MessageType.USER.name()) {
 		}).register(new TypeMapper.Reference<AssistantMessage>(MessageType.ASSISTANT.name()) {
+		}).register(new TypeMapper.Reference<Media>("MEDIA") {
 		}).register(new TypeMapper.Reference<Document>("DOCUMENT") {
 		}).register(new TypeMapper.Reference<AgentInstructionMessage>("TEMPLATED_USER") {
 		}).register(new TypeMapper.Reference<DeepSeekAssistantMessage>("DEEPSEEK_ASSISTANT") {
@@ -112,6 +114,8 @@ public class SpringAIJacksonStateSerializer extends JacksonStateSerializer {
 
 		AgentInstructionMessageHandler.Deserializer templatedUser = new AgentInstructionMessageHandler.Deserializer();
 
+		MediaHandler.Deserializer media = new MediaHandler.Deserializer();
+
 		StreamingOutputDeserializer streamingOutput = new StreamingOutputDeserializer();
 
 		static void registerTo(SimpleModule module) {
@@ -119,8 +123,10 @@ public class SpringAIJacksonStateSerializer extends JacksonStateSerializer {
 					.addDeserializer(SystemMessage.class, system)
 					.addDeserializer(UserMessage.class, user)
 					.addDeserializer(AssistantMessage.class, ai)
+					.addDeserializer(ToolResponseMessage.class, tool)
 					.addDeserializer(Document.class, document)
 					.addDeserializer(AgentInstructionMessage.class, templatedUser)
+					.addDeserializer(Media.class, media)
 					.addDeserializer(StreamingOutput.class, streamingOutput)
 					.addDeserializer(DeepSeekAssistantMessage.class, new DeepSeekAssistantMessageHandler.Deserializer());
 		}
@@ -155,6 +161,8 @@ public class SpringAIJacksonStateSerializer extends JacksonStateSerializer {
 
 		AgentInstructionMessageHandler.Serializer templatedUser = new AgentInstructionMessageHandler.Serializer();
 
+		MediaHandler.Serializer media = new MediaHandler.Serializer();
+
 		JacksonNodeOutputSerializer output = new JacksonNodeOutputSerializer();
 
 		StreamingOutputSerializer streamingOutput = new StreamingOutputSerializer();
@@ -166,6 +174,7 @@ public class SpringAIJacksonStateSerializer extends JacksonStateSerializer {
 					.addSerializer(AssistantMessage.class, ai)
 					.addSerializer(Document.class, document)
 					.addSerializer(AgentInstructionMessage.class, templatedUser)
+					.addSerializer(Media.class, media)
 					.addSerializer(NodeOutput.class, output)
 					.addSerializer(StreamingOutput.class, streamingOutput)
 					.addSerializer(DeepSeekAssistantMessage.class, new DeepSeekAssistantMessageHandler.Serializer());
