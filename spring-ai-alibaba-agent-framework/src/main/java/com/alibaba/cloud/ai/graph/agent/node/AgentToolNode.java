@@ -34,6 +34,9 @@ import com.alibaba.cloud.ai.graph.agent.tool.StateAwareToolCallback;
 import com.alibaba.cloud.ai.graph.agent.tool.ToolCancelledException;
 import com.alibaba.cloud.ai.graph.agent.tool.ToolStateCollector;
 
+import com.aliyun.domain.monitor.bizlog.BizLog;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -121,6 +124,9 @@ public class AgentToolNode implements NodeActionWithConfig {
 
 	private ToolExecutionExceptionProcessor toolExecutionExceptionProcessor;
 
+	@Getter
+	private final ToolCallExecutor toolCallExecutor;
+
 	public AgentToolNode(Builder builder) {
 		this.agentName = builder.agentName;
 		this.enableActingLog = builder.enableActingLog;
@@ -132,18 +138,22 @@ public class AgentToolNode implements NodeActionWithConfig {
 		this.maxParallelTools = builder.maxParallelTools;
 		this.toolExecutionTimeout = builder.toolExecutionTimeout;
 		this.wrapSyncToolsAsAsync = builder.wrapSyncToolsAsAsync;
+        this.toolCallExecutor = builder.toolCallExecutor == null ? new DefaultToolCallExecutor(builder) : builder.toolCallExecutor;
 	}
 
 	public void setToolCallbacks(List<ToolCallback> toolCallbacks) {
 		this.toolCallbacks = toolCallbacks;
+		this.toolCallExecutor.setToolCallbacks(toolCallbacks);
 	}
 
 	public void setToolInterceptors(List<ToolInterceptor> toolInterceptors) {
 		this.toolInterceptors = toolInterceptors;
+		this.toolCallExecutor.setToolInterceptors(toolInterceptors);
 	}
 
 	void setToolCallbackResolver(ToolCallbackResolver toolCallbackResolver) {
 		this.toolCallbackResolver = toolCallbackResolver;
+		this.toolCallExecutor.setToolCallbackResolver(toolCallbackResolver);
 	}
 
 	public List<ToolCallback> getToolCallbacks() {
@@ -151,6 +161,7 @@ public class AgentToolNode implements NodeActionWithConfig {
 	}
 
 	@Override
+	@BizLog(bizDomain = "Graph", opName = "工具节点", ignoreParamIndexes = {1}, printResult = true)
 	public Map<String, Object> apply(OverAllState state, RunnableConfig config) throws Exception {
 		List<Message> messages = (List<Message>) state.value("messages").orElseThrow();
 		Message lastMessage = messages.get(messages.size() - 1);

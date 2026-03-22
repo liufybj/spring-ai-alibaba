@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 import com.alibaba.cloud.ai.graph.CompileConfig;
 import com.alibaba.cloud.ai.graph.KeyStrategy;
@@ -31,6 +32,7 @@ import com.alibaba.cloud.ai.graph.agent.hook.Hook;
 import com.alibaba.cloud.ai.graph.agent.interceptor.Interceptor;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ModelInterceptor;
 import com.alibaba.cloud.ai.graph.agent.interceptor.ToolInterceptor;
+import com.alibaba.cloud.ai.graph.agent.node.ToolCallExecutor;
 import com.alibaba.cloud.ai.graph.checkpoint.BaseCheckpointSaver;
 import com.alibaba.cloud.ai.graph.checkpoint.config.SaverConfig;
 
@@ -39,6 +41,7 @@ import com.alibaba.cloud.ai.graph.serializer.std.SpringAIStateSerializer;
 import io.micrometer.observation.ObservationRegistry;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.client.advisor.observation.AdvisorObservationConvention;
 import org.springframework.ai.chat.client.observation.ChatClientObservationConvention;
 import org.springframework.ai.chat.model.ChatModel;
@@ -62,6 +65,8 @@ public abstract class Builder {
 
 	protected String systemPrompt;
 
+	protected Supplier<String> systemPromptSupplier;
+
 	// Provide customized template renderer instance, for example
 	// SaaStTemplateRenderer.builder().startDelimiterToken("{{").endDelimiterToken("}}").build()
 	protected TemplateRenderer templateRenderer;
@@ -83,6 +88,8 @@ public abstract class Builder {
 	protected ToolExecutionExceptionProcessor toolExecutionExceptionProcessor;
 
 	protected Map<String, Object> toolContext = new HashMap<>();
+
+	protected ToolCallExecutor toolCallExecutor;
 
 	protected boolean releaseThread;
 
@@ -126,6 +133,13 @@ public abstract class Builder {
 	protected Duration toolExecutionTimeout = Duration.ofMinutes(5);
 	protected boolean wrapSyncToolsAsAsync = false;
 
+	protected List<Advisor> advisors;
+
+	public Builder advisors(List<Advisor> advisors) {
+		this.advisors = advisors;
+		return this;
+	}
+
 	public Builder name(String name) {
 		this.name = name;
 		return this;
@@ -139,6 +153,11 @@ public abstract class Builder {
 
 	public Builder model(ChatModel model) {
 		this.model = model;
+		return this;
+	}
+
+	public Builder toolCallExecutor(ToolCallExecutor toolCallExecutor) {
+		this.toolCallExecutor = toolCallExecutor;
 		return this;
 	}
 
@@ -234,6 +253,11 @@ public abstract class Builder {
 
 	public Builder templateRenderer(TemplateRenderer templateRenderer) {
 		this.templateRenderer = templateRenderer;
+		return this;
+	}
+
+	public Builder systemPromptSupplier(Supplier<String> systemPromptSupplier) {
+		this.systemPromptSupplier = systemPromptSupplier;
 		return this;
 	}
 

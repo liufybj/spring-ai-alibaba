@@ -18,6 +18,8 @@ package com.alibaba.cloud.ai.graph.serializer.plain_text.jackson;
 import org.springframework.ai.chat.messages.UserMessage;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
@@ -30,6 +32,7 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+import org.springframework.ai.content.Media;
 
 import static com.alibaba.cloud.ai.graph.serializer.plain_text.jackson.SerializationHelper.deserializeMetadata;
 import static com.alibaba.cloud.ai.graph.serializer.plain_text.jackson.SerializationHelper.serializeMetadata;
@@ -72,11 +75,16 @@ public interface UserMessageHandler {
 			gen.writeStringField(Field.TEXT.name, msg.getText());
 			serializeMetadata(gen, msg.getMetadata());
 
-			// gen.writeArrayFieldStart( Property.MEDIA.field);
-			// for (var media : msg.getMedia()) {
-			// gen.writeObject(media);
-			// }
-			// gen.writeEndArray();
+			// Serialize media if present
+			if (msg.getMedia() != null && !msg.getMedia().isEmpty()) {
+				gen.writeArrayFieldStart(Field.MEDIA.name);
+				for (var media : msg.getMedia()) {
+					gen.writeObject(media);
+				}
+				gen.writeEndArray();
+			}
+
+			gen.writeEndObject();
 		}
 	}
 
@@ -94,8 +102,20 @@ public interface UserMessageHandler {
 			var text = node.findValue(Field.TEXT.name).asText();
 			var metadata = deserializeMetadata(mapper, node);
 
-			return UserMessage.builder().text(text).metadata(metadata).build();
+			UserMessage.Builder builder = UserMessage.builder().text(text).metadata(metadata);
 
+			// Deserialize media if present
+			var mediaNode = node.findValue(Field.MEDIA.name);
+			List<Media> medias = new ArrayList<>();
+			if (mediaNode != null && !mediaNode.isNull() && mediaNode.isArray()) {
+				for (var mediaElement : mediaNode) {
+					var media = mapper.convertValue(mediaElement, Media.class);
+					medias.add(media);
+				}
+			}
+			builder.media(medias);
+
+			return builder.build();
 		}
 
 	}

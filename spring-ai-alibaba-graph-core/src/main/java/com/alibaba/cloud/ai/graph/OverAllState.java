@@ -219,8 +219,13 @@ public final class OverAllState implements Serializable {
 		}
 
 		Map<String, KeyStrategy> keyStrategies = keyStrategies();
-		input.keySet().stream().filter(key -> keyStrategies.containsKey(key)).forEach(key -> {
-			this.data.put(key, keyStrategies.get(key).apply(value(key, null), input.get(key)));
+		// modified by liufy
+//		input.keySet().stream().filter(key -> keyStrategies.containsKey(key)).forEach(key -> {
+//			this.data.put(key, keyStrategies.get(key).apply(value(key, null), input.get(key)));
+//		});
+		input.keySet().stream().forEach(key -> {
+			KeyStrategy strategy = keyStrategies.get(key) == null ? KeyStrategy.REPLACE : keyStrategies.get(key);
+			this.data.put(key, strategy.apply(value(key, null), input.get(key)));
 		});
 		return this;
 	}

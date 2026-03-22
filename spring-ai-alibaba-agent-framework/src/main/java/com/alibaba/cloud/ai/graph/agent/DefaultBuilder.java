@@ -23,6 +23,7 @@ import com.alibaba.cloud.ai.graph.agent.node.AgentLlmNode;
 import com.alibaba.cloud.ai.graph.agent.node.AgentToolNode;
 import io.micrometer.observation.ObservationRegistry;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -99,9 +100,13 @@ public class DefaultBuilder extends Builder {
 		if (templateRenderer != null) {
 			llmNodeBuilder.templateRenderer(templateRenderer);
     }
-    
+
 		if (instruction != null) {
 			llmNodeBuilder.instruction(instruction);
+		}
+
+		if (systemPromptSupplier != null) {
+			llmNodeBuilder.systemPromptSupplier(systemPromptSupplier);
 		}
 
 		String outputSchema = null;
@@ -115,11 +120,11 @@ public class DefaultBuilder extends Builder {
 		if (StringUtils.hasLength(outputSchema)) {
 			llmNodeBuilder.outputSchema(outputSchema);
 		}
-		
+
 		separateInterceptorsByType();
-		
+
 		List<ToolCallback> allTools = gatherLocalTools();
-		
+
 		// Set combined tools to LLM node
 		if (CollectionUtils.isNotEmpty(allTools)) {
 			llmNodeBuilder.toolCallbacks(Collections.unmodifiableList(allTools));
@@ -166,7 +171,7 @@ public class DefaultBuilder extends Builder {
 
 		return new ReactAgent(llmNode, toolNode, buildConfig(), this);
 	}
-	
+
 	/**
 	 * Separate unified interceptors by type into modelInterceptors and toolInterceptors.
 	 */
@@ -174,7 +179,7 @@ public class DefaultBuilder extends Builder {
 		if (CollectionUtils.isNotEmpty(interceptors)) {
 			modelInterceptors = new ArrayList<>();
 			toolInterceptors = new ArrayList<>();
-			
+
 			for (Interceptor interceptor : interceptors) {
 				if (interceptor instanceof ModelInterceptor) {
 					modelInterceptors.add((ModelInterceptor) interceptor);
@@ -208,18 +213,18 @@ public class DefaultBuilder extends Builder {
 		// - regularTools: user-provided tools
 		// - interceptorTools: tools from interceptors
 		List<ToolCallback> regularTools = new ArrayList<>();
-		
+
 		// Extract regular tools from user-provided tools
 		if (CollectionUtils.isNotEmpty(tools)) {
 			regularTools.addAll(tools);
 		}
-		
+
 		if (CollectionUtils.isNotEmpty(toolCallbackProviders)) {
 			for (var provider : toolCallbackProviders) {
 				regularTools.addAll(List.of(provider.getToolCallbacks()));
 			}
 		}
-		
+
 		if (CollectionUtils.isNotEmpty(toolNames)) {
 			for (String toolName : toolNames) {
 				// Skip the tool if it is already present in the request toolCallbacks.
@@ -228,7 +233,7 @@ public class DefaultBuilder extends Builder {
 				if (regularTools.stream().anyMatch(tool -> tool.getToolDefinition().name().equals(toolName))) {
 					continue;
 				}
-				
+
 				if (this.resolver == null) {
 					throw new IllegalStateException(
 							"ToolCallbackResolver is null; cannot resolve tool name: " + toolName);
@@ -241,7 +246,7 @@ public class DefaultBuilder extends Builder {
 				regularTools.add(toolCallback);
 			}
 		}
-		
+
 		// If regularTools is empty and resolver is provided, try to extract tools from resolver
 		if (regularTools.isEmpty() && this.resolver != null) {
 			// Check if resolver also implements ToolCallbackProvider
@@ -280,7 +285,7 @@ public class DefaultBuilder extends Builder {
 				}
 			}
 		}
-		
+
 		// Extract interceptor tools
 		List<ToolCallback> interceptorTools = new ArrayList<>();
 		if (CollectionUtils.isNotEmpty(modelInterceptors)) {

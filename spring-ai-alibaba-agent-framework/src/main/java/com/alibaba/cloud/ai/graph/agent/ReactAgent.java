@@ -25,7 +25,9 @@ import com.alibaba.cloud.ai.graph.OverAllState;
 import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.StateGraph;
 import com.alibaba.cloud.ai.graph.SubGraphNode;
+import com.alibaba.cloud.ai.graph.action.AsyncNodeActionWithConfig;
 import com.alibaba.cloud.ai.graph.action.EdgeAction;
+import com.alibaba.cloud.ai.graph.action.InterruptableAction;
 import com.alibaba.cloud.ai.graph.action.NodeActionWithConfig;
 import com.alibaba.cloud.ai.graph.agent.exception.AgentException;
 import com.alibaba.cloud.ai.graph.agent.factory.AgentBuilderFactory;
@@ -56,6 +58,7 @@ import com.alibaba.cloud.ai.graph.state.strategy.AppendStrategy;
 import com.alibaba.cloud.ai.graph.state.strategy.ReplaceStrategy;
 import com.alibaba.cloud.ai.graph.utils.TypeRef;
 
+import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -100,6 +103,7 @@ public class ReactAgent extends BaseAgent {
 
 	private final AgentLlmNode llmNode;
 
+	@Getter
 	private final AgentToolNode toolNode;
 
 	private List<? extends Hook> hooks;
@@ -238,12 +242,12 @@ public class ReactAgent extends BaseAgent {
 	/**
 	 * Updates the agent thread state with interruption feedback.
 	 * This method is thread-safe and can be called concurrently with apply() in InterruptionHook.
-	 * 
+	 *
 	 * Thread-safety guarantees:
 	 * - threadIdStateMap is a ConcurrentHashMap, ensuring thread-safe access
 	 * - computeIfAbsent ensures atomic creation of the inner map if it doesn't exist
 	 * - The inner map is always a ConcurrentHashMap, ensuring thread-safe put() operations
-	 * 
+	 *
 	 * Concurrency behavior:
 	 * - If called before apply() processes feedback: the new value will be processed
 	 * - If called after apply() removes feedback: the new value will be set for next iteration
@@ -375,8 +379,9 @@ public class ReactAgent extends BaseAgent {
 		// Add hook nodes for afterModel hooks
 		for (Hook hook : afterModelHooks) {
 			if (hook instanceof ModelHook modelHook) {
-				if (hook instanceof HumanInTheLoopHook humanInTheLoopHook) {
-					graph.addNode(Hook.getFullHookName(hook) + ".afterModel", humanInTheLoopHook);
+				// modified by liufy
+				if (hook instanceof InterruptableAction) {
+					graph.addNode(Hook.getFullHookName(hook) + ".afterModel", (AsyncNodeActionWithConfig) hook);
 				} else {
 					graph.addNode(Hook.getFullHookName(hook) + ".afterModel", modelHook::afterModel);
 				}
